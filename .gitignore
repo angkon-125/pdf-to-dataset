@@ -1,0 +1,17 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+*.zip
+uploads/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.env.*
+!.env.example
+*.pt
+*.pth
+*.ckpt
