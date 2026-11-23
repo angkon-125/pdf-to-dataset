@@ -62,7 +62,7 @@ def test_gen_validate_review_and_export():
     assert len(candidates) == 2 and not warns
     assert all(x["review_status"] == "needs_review" for x in candidates)
     assert all(not x["validation_flags"] for x in candidates)
-    z, manifest = build_zip(data, chunks, candidates, backend="ollama", model="fake", chunks_attempted=2)
+    z, manifest = build_zip(data, chunks, candidates, backend="ollama", model="fake", chunks_attempted=2, rights_attested=True)
     assert manifest["approved_examples"] == 0
     with zipfile.ZipFile(io.BytesIO(z)) as f:
         assert len(f.read("rag_chunks.jsonl").decode().splitlines()) == 2
@@ -70,7 +70,7 @@ def test_gen_validate_review_and_export():
         assert "needs_review" in f.read("qa_candidates.jsonl").decode()
     candidates[0]["review_status"] = "approved"
     candidates[0]["reviewer"] = "reviewer1"
-    z, manifest = build_zip(data, chunks, candidates, backend="ollama", model="fake", chunks_attempted=2)
+    z, manifest = build_zip(data, chunks, candidates, backend="ollama", model="fake", chunks_attempted=2, rights_attested=True)
     assert manifest["approved_examples"] == 1
     with zipfile.ZipFile(io.BytesIO(z)) as f:
         line = json.loads(f.read("sft_approved.jsonl").decode().splitlines()[0])
@@ -83,7 +83,7 @@ def test_invalid_evidence_cannot_enter_approved_sft():
     rows, _ = generate_candidates(chunks, FakeLLM(), max_chunks=0)
     rows[0]["evidence_quote"] = "An unsupported claim from nowhere."
     rows[0]["review_status"] = "approved"
-    _z, manifest = build_zip(data, chunks, rows, backend="ollama", chunks_attempted=2)
+    _z, manifest = build_zip(data, chunks, rows, backend="ollama", chunks_attempted=2, rights_attested=True)
     assert manifest["approved_examples"] == 0
     assert manifest["unreviewed_examples"] == 2
 
@@ -95,7 +95,8 @@ def test_duplicate_questions_are_flagged_during_export():
     for x in rows:
         x["question"] = "What does the book teach?"
         x["review_status"] = "approved"
-    _z, manifest = build_zip(data, chunks, rows, chunks_attempted=2)
+        x["reviewer"] = "tester"
+    _z, manifest = build_zip(data, chunks, rows, chunks_attempted=2, rights_attested=True)
     assert manifest["approved_examples"] == 1
     assert manifest["unreviewed_examples"] == 1
 

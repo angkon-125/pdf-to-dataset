@@ -1,17 +1,36 @@
-__pycache__/
-.pytest_cache/
-*.pyc
-.env
-*.zip
-uploads/
+# Python
 .venv/
 venv/
 __pycache__/
 .pytest_cache/
-*.pyc
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+# Secrets and local job data
 .env
 .env.*
 !.env.example
+runs/
+uploads/
+private/
+local_data/
+*.sqlite3
+*.db
+# Model binaries / training checkpoints
+*.gguf
 *.pt
 *.pth
 *.ckpt
+*.safetensors
+# Exported archives and temporary files
+*.zip
+*.tmp
+*.log
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

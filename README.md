@@ -1,122 +1,168 @@
-# Angkon Dataset Factory (MVP)
+# Angkon Dataset Factory v0.2
 
-**PDF -> heuristic detection -> text/OCR -> chunking -> optional LLM classification -> annotation generation -> validation -> human approval -> dataset ZIP**
+**PDF-to-dataset, local-first, with page-level provenance and human annotation review.**
 
-A runnable, local-first prototype for preparing traceable LLM annotation datasets from PDFs.
-It produces **draft** annotation/SFT records for human review, not automatically certified training data.
+Convert PDFs containing books, research papers, reports, manuals or notes into reviewable question/answer data, retrieval chunks, and *approved-only* SFT samples. The system works in extraction-only mode without an AI model or paid API. It can optionally use Ollama or a local llama.cpp/OpenAI-compatible endpoint to generate grounded **draft** Q&A candidates.
 
-## Quick start (local UI)
+> **Not an automatic truth verifier.** A copied quote may appear in a document without supporting the generated answer. Always review candidates, training rights, and privacy before training or publishing datasets.
 
-Python 3.10+ recommended.
+## v0.2 improvements
 
-```bash
-python -m venv .venv
-# Activate the environment for your operating system, then:
-pip install -r requirements.txt
-streamlit run app.py
+- **Multiple PDFs** in one run, with SHA-256 deduplication and per-source/page references.
+- **Chapter/section metadata** from PDF outlines where available, with heading fallback.
+- **Optional table extraction** using PyMuPDF (heuristic; requires visual inspection).
+- **Optional OCR** for pages with little extractable text (Tesseract installed separately).
+- **Bangla/English script hints**, book/paper/report/manual heuristic classification; optional LLM document classification.
+- **Low-RAM LLM generation** with configurable prompt input size, output limit, and `spread` chunk sampling across the whole document.
+- **Local response cache/resume** for successful model calls; no repeated inference after the same prompt is cached.
+- **Dataset quality flags** for evidence mismatch, invalid schemas, duplicates, possible PII, missing reviewers and provenance mismatch.
+- **Reviewable CSV + Streamlit editor**, offline CSV re-import, optional audit events.
+- **Approved SFT only** after manual review and a training-rights attestation; no fabricated preference/DPO pairs.
+- **Source-grouped splits** (train/validation/test) to reduce leakage between chunks from the same PDF.
+- **Dataset card, quality report, source metadata, and full extraction coverage information.**
+- **Tests + GitHub Actions CI**, PowerShell setup/publishing helpers.
+
+## Start on Windows (PowerShell)
+
+1. Download and extract `Angkon_Dataset_Factory_v0.2.zip` into `E:\\DOWNLOADS`.
+2. Open PowerShell inside `E:\\DOWNLOADS\\angkon_dataset_factory`.
+
+```powershell
+cd 'E:\DOWNLOADS\angkon_dataset_factory'
+powershell -ExecutionPolicy Bypass -File '.\scripts\install_windows.ps1'
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Open the local Streamlit address shown in your terminal. Choose **Extraction only** to build a RAG/reading dataset without an LLM. To generate grounded Q&A candidates, choose a configured model backend.
+Open `http://localhost:8501` if your browser does not launch automatically.
 
-## Optional local LLM with Ollama
+You can also install manually:
 
-Install Ollama separately and pull a model suitable for your hardware:
-
-```bash
-ollama pull qwen2.5:7b
-ollama serve
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-If Ollama is already running, you do not need a second `ollama serve`. In the app, select **Ollama (local)** and confirm the model name and local URL.
+Python 3.10+ recommended. You do **not** need to buy new hardware for extraction-only mode; some heavy model workloads may be impractical on limited CPUs/RAM.
 
-For cloud or OpenAI-compatible endpoints, choose **OpenAI-compatible API** and enter its base URL, model ID, and API key. This **sends source content to that endpoint**. Only do so when authorized.
+## CLI: offline extraction (no AI needed)
 
-## Optional scanned-PDF OCR
-
-Install the **Tesseract** executable separately, and make it accessible on your PATH. Install its `eng` English trained data, and `ben` if processing Bengali scans. Check available packs with `tesseract --list-langs`. Enable **Try OCR for scanned pages** in the app. Image-only pages otherwise lack extractable text.
-
-The OCR feature uses PyMuPDF's Tesseract integration. Some deployments require configuring `TESSDATA_PREFIX`. OCR quality varies; review the resulting text before training.
-
-## CLI (works in notebooks / Kaggle too)
-
-Extraction-only workflow:
-
-```bash
-python -m angkon_factory.cli examples/demo.pdf --output dataset.zip
+```powershell
+.\.venv\Scripts\python.exe -m angkon_factory.cli '.\examples\demo.pdf' --output 'angkon_dataset.zip'
 ```
 
-With local LLM generation:
+Several PDF files in one command:
 
-```bash
-python -m angkon_factory.cli examples/demo.pdf --output dataset.zip \
-  --backend ollama --model qwen2.5:7b --endpoint http://localhost:11434 \
-  --examples-per-chunk 2 --max-chunks 0
+```powershell
+.\.venv\Scripts\python.exe -m angkon_factory.cli 'E:\DOWNLOADS\Book1.pdf' 'E:\DOWNLOADS\Book2.pdf' --output 'combined_dataset.zip' --tables
 ```
 
-OpenAI-compatible endpoint (API key from environment):
+For scanned PDFs: install Tesseract and suitable language packs (`eng`, `ben`) separately, then add `--ocr --ocr-language eng+ben`.
 
-```bash
-export OPENAI_API_KEY="YOUR_API_KEY"
-python -m angkon_factory.cli book.pdf --backend openai_compatible \
-  --endpoint https://api.openai.com/v1 --model gpt-4.1-mini --max-chunks 15
+## CLI: local model generation, low-memory configuration
+
+### Ollama
+
+Install and start Ollama separately, download a model that fits your PC, and specify the **exact model ID you installed**. This example uses a small model ID only if available on your Ollama setup:
+
+```powershell
+.\.venv\Scripts\python.exe -m angkon_factory.cli '.\examples\demo.pdf' `
+  --backend ollama --endpoint 'http://127.0.0.1:11434' --model 'qwen3:0.6b' `
+  --chunk-chars 900 --max-source-chars 650 --examples-per-chunk 1 `
+  --max-chunks 10 --max-output-tokens 350 --rights-confirmed --output 'draft_qa.zip'
 ```
 
-Kaggle does not automatically provide an Ollama server or a GPU inference service. If `localhost:11434` is unavailable, use an explicitly configured endpoint or extraction-only mode. Installation and network policies differ by environment.
+### llama.cpp OpenAI-compatible server (useful with existing locally hosted Qwen)
 
-Use `--ocr --ocr-language eng+ben` for scanned sources where both Tesseract language packs are installed. Increase `--page-limit` for longer books. `--max-chunks 0` attempts generation for **all extracted chunks** (may incur significant time/cost); extraction runs across all processed pages regardless.
+If you already run llama.cpp server, confirm its actual host/port and model ID. Example:
 
-## Included runnable examples
+```powershell
+.\.venv\Scripts\python.exe -m angkon_factory.cli '.\examples\demo.pdf' `
+  --backend openai_compatible --endpoint 'http://127.0.0.1:8080/v1' --model 'local-model' `
+  --chunk-chars 900 --max-source-chars 650 --examples-per-chunk 1 `
+  --max-chunks 10 --max-output-tokens 350 --rights-confirmed --output 'draft_qa.zip'
+```
 
-`examples/demo.pdf` is a small original test document. `examples/demo_output.zip` shows offline extraction; `examples/demo_candidates.zip` contains two **synthetic fixture** Q&A records to demonstrate the draft-review format (not produced by a real model).
+These settings are a **starting point** for small context windows (such as 2,048 tokens); they do not guarantee every model accepts or correctly completes the prompt. Check warnings and model server logs. Using `--max-chunks 0` asks the model to process all extracted chunks, possibly involving hundreds of slow CPU calls. The extraction-only dataset covers all **processed pages** regardless of model sampling.
 
-## Archive outputs
+### OpenAI-compatible remote API
 
-| Filename | What it contains |
+Use `--backend openai_compatible --endpoint <provider-api-base> --model <provider-model>`; provide an API key through an environment variable such as `OPENAI_API_KEY` if required. **Source text is transmitted to that provider.** Do not send sensitive or copyrighted material without appropriate rights/permissions and privacy review.
+
+## Human review and approved SFT export
+
+Model-generated records are always unreviewed drafts. To approve offline:
+
+1. Extract the generated `draft_qa.zip` and open `annotations_review.csv` in a spreadsheet.
+2. Check each answer, original PDF page and evidence quotation. Correct errors or mark the row `rejected`.
+3. For truly verified records set `review_status` to `approved` and enter a nonempty `reviewer`.
+4. Save the edited CSV as UTF-8.
+5. Re-import without re-running the model:
+
+```powershell
+.\.venv\Scripts\python.exe -m angkon_factory.cli review `
+  'draft_qa.zip' 'annotations_review.csv' --output 'approved_dataset.zip' `
+  --attest-reviewed --rights-confirmed
+```
+
+Only approved rows passing mechanical validation appear in `sft_approved.jsonl`. **Human approval does not make source claims inherently true**: the reviewer must check evidence and context. Training-rights attestation is not independent legal verification.
+
+## What is inside an output ZIP?
+
+| Output | Purpose |
 | --- | --- |
-| `manifest.json` | PDF hash, type/language heuristics, processed pages, coverage, model, counts, warnings |
-| `rag_chunks.jsonl` | Page-referenced, chunked extracted text for retrieval/analysis |
-| `extracted_text.txt` | Extracted page text, for manual checking |
-| `qa_candidates.jsonl` | Model-generated Q&A, evidence quotes, flags, and review status |
-| `annotations_review.csv` | Review-friendly, spreadsheet-ready annotation records |
-| `sft_candidates.jsonl` | Draft chat-style examples, **not approved by default** |
-| `sft_approved.jsonl` | Only manually approved, structurally validated chat examples |
-| `README_DATASET.txt` | Guide and limitations bundled with each output |
+| `manifest.json` | SHA-256 source IDs, counts, pipeline flags, warning details |
+| `quality_report.json` | Coverage, validation-flag distribution, types/languages |
+| `dataset_card.md` | Intended uses, sources, model limitations, ethics |
+| `annotation_guidelines.md` | Reviewer checklist and approval guidance |
+| `source_documents.json` | Source metadata for reproducible re-review |
+| `source_pages.jsonl` | Original extracted text (or regex-masked copy) by PDF page |
+| `rag_chunks.jsonl` | Text chunks with source page/section/provenance |
+| `tables.jsonl` | Optional heuristic table rows and page/region references |
+| `qa_candidates.jsonl` | Draft QA candidates with evidence quotes and review status |
+| `annotations_review.csv` | Spreadsheet annotation/review queue |
+| `audit_log.jsonl` | Review-edit events, with reviewer IDs and timestamps |
+| `sft_candidates.jsonl` | Unreviewed chat-style examples; **NOT** approved training data |
+| `sft_approved.jsonl` | Only approved, validated, rights-attested chat messages |
+| `sft_train.jsonl`, `sft_validation.jsonl`, `sft_test.jsonl` | Source-grouped split of approved SFT |
+| `extracted_text.txt` | Human-readable extracted source, by document and page |
 
-**Note:** The CLI produces only draft annotations. For manual approval, use the UI and export the updated ZIP. No DPO dataset is generated from a single PDF: DPO requires real response comparisons and preference judgments, not fabricated "rejected" answers.
+With fewer than three unique PDFs, only `sft_train.jsonl` is populated; splitting pages of one book across training and testing would leak source content.
 
-## How the checks work
+## Privacy, copyright, and local storage
 
-- Page number, chunk ID, and SHA-256 of the input PDF are attached to data.
-- Generated `evidence_quote` must match an exact substring of its source chunk (after whitespace normalization).
-- Missing/invalid evidence, malformed answers, invalid kinds, and duplicate questions are flagged.
-- Human review is required to check actual meaning, truthfulness, safety, licensing, and privacy.
-- Source instructions are explicitly treated as untrusted document text, not commands for the model.
+- The **original PDF is not included** in exports. Text extracted from it **is included** and may still be confidential.
+- `--redact-pii` performs only **partial regex-based masking** of email addresses and common Bangladesh mobile formats in extracted text/tables. It does not scrub embedded images, other identifiers or all metadata. Do not rely on it for production privacy compliance.
+- Generating training examples from a copyrighted book does not grant any right to reuse, redistribute, or commercially train on its content.
+- The optional local generation cache is stored in `runs/cache/` as unencrypted JSON; it is ignored by Git. Delete it when no longer needed.
+- `--rights-confirmed` and `--attest-reviewed` are **user acknowledgments**, not an external verification system.
+- Do not deploy this Streamlit prototype as an unsecured public file-upload service. Production requires access controls, process isolation, input limits, retention policies, secret management, and endpoint allowlisting.
 
-**An exact evidence quote is not a semantic entailment guarantee.** A fabricated answer can quote a real sentence. The prototype does not claim to automatically verify factual correctness.
+## Limits and common issues
 
-## Limitations and production work
+- Hard limits: **60 MB per PDF, 1,500 pages per PDF, 25 PDFs per batch, 120 MB combined**. Streamlit starts with 300 pages per PDF by default; increase this for full-book extraction. The CLI defaults to 1,500.
+- PDFs with scanned pages require Tesseract OCR; install `ben` for Bangla scans.
+- Tables, formulas, images, and two-column text may extract incorrectly; check source pages visually.
+- Local models can return malformed JSON or fail under a small context window; see warnings. Reduce `--max-source-chars`, `--examples-per-chunk`, or `--max-output-tokens` and retry.
+- `--max-chunks` caps *generation calls per PDF*, **not** extraction coverage.
+- Book chapter detection is based on PDF bookmarks/outlines when available, otherwise basic headings.
+- It does not fabricate DPO labels or simulate human preference decisions.
 
-This is an MVP, not a production multi-user service:
+## GitHub publishing (your repository)
 
-1. PDF input only; 60 MB / 1500-page hard ceilings. The UI defaults to processing at most 300 pages; configure for longer inputs.
-2. Language detection is heuristic. Document type detection starts with **simple heuristics** and may be refined by an LLM on sampled snippets; neither is guaranteed correct. Complex multilingual layouts need better parsing/classification.
-3. PDF text order may be incorrect for tables, two-column layouts, mathematical formulas, figures, and diagrams. These need layout-aware extraction, specialized table processing, or vision models.
-4. OCR requires system dependencies and may introduce mistakes, especially with low-quality scans or Bengali material.
-5. Generation may fail on long or poorly extracted chunks; model errors are recorded in the manifest.
-6. The UI performs manual review but is **not** a full audit system. Production should add access control, audit trails, persistent review state, row-level assignments, inter-annotator agreement, deduplication at scale, and reviewer calibration.
-7. For multi-user production, isolate PDF processing in a constrained container, restrict arbitrary API endpoints to a safe allowlist, rate-limit work, implement storage retention, and scan uploaded files.
-8. Only ingest and use materials with appropriate rights and permissions. **Extracting a book does not confer permission to redistribute text or use it to train a commercial model.** Respect user privacy and the API provider's terms.
+Target: `https://github.com/angkon-125/pdf-to-dataset.git`.
 
-## Run tests
+1. Extract the v0.2 ZIP under `E:\DOWNLOADS` to `E:\DOWNLOADS\angkon_dataset_factory`.
+2. Clone or update `E:\DOWNLOADS\pdf-to-dataset` and copy **code only** into it.
+3. Commit and push. `scripts/publish_github.ps1` checks the remote and never force pushes. See the PowerShell commands in the accompanying ChatGPT answer.
 
-```bash
-python -m pytest -q
+**Do not** upload `.env` credentials, local model weights, private PDFs, generated copyrighted text, or `runs/cache` to GitHub. This repository contains a small original demonstration PDF for testing.
+
+## Developers
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-## Suggested next build phases
-
-- Better PDF structure recognition: pages, tables, chapters, headings, page-local image/figure descriptions.
-- Schema/task router: SFT, factual Q&A, RAG, entity extraction, classification, and multilingual tasks.
-- Second-pass grounding verifier and disagreement queues with human adjudication.
-- Batch jobs, resumable processing, job database, optional GPU worker, storage permissions.
-- True RLHF/DPO comparison labeling via multiple model outputs and reviewer preferences.
+See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for design and technical guarantees. No software license has been selected for the project; choose one explicitly before distributing the source under an open-source license.
