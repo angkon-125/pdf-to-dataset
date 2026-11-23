@@ -34,3 +34,13 @@ local_data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Human annotations, personal PDFs, and training corpora: private by default
+review_workbench/
+curated_exports/
+*.jsonl
+*.csv
+*.pdf
+!examples/demo.pdf
+*.parquet
+*.xlsx

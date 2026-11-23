@@ -1,4 +1,4 @@
-"""Streamlit UI for Angkon Dataset Factory 0.2 (local-first, reviewed outputs)."""
+"""Streamlit UI for Angkon Dataset Factory 0.3 (local-first, reviewed outputs)."""
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +24,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Angkon Dataset Factory")
-st.caption("v0.2 · PDF books, research papers and reports → auditable RAG chunks + draft QA + reviewer-approved SFT")
+st.caption("v0.3 · PDF books, research papers and reports → auditable RAG chunks + draft QA + reviewer-approved SFT")
 
 with st.sidebar:
     st.header("Processing settings")
@@ -197,10 +197,15 @@ if run:
     stats[2].metric("Flagged issues", sum(manifest["validation_flag_counts"].values()))
     stats[3].metric("Text page coverage", f"{manifest['text_extraction_coverage_percent']}%")
     st.download_button("Download Angkon dataset ZIP", bundle,
-                       file_name=f"angkon_dataset_v2_{run['run_id']}.zip", mime="application/zip", type="primary")
+                       file_name=f"angkon_dataset_v3_{run['run_id']}.zip", mime="application/zip", type="primary")
     st.caption("Exports: manifest, quality report, dataset card, pages, RAG chunks, tables, review CSV, Q&A candidates, approved SFT, and source-grouped splits.")
 else:
     st.info("Choose extraction-only or a model backend, upload a PDF, confirm document rights, and run the workflow.")
 
+st.divider()
+st.subheader("5 · Professional human annotation and data science (new in v0.3)")
+st.markdown("Open the **Angkon Annotation & Data Science Lab** to use independent human rubric reviews, error prioritization, disagreement gating, and strict gold SFT/DPO exports.")
+st.code(".\\.venv\\Scripts\\python.exe -m streamlit run curator_app.py", language="powershell")
+st.caption("Download the draft ZIP above and upload it into the separate local workbench. A source quote alone is not proof of factual correctness.")
 st.divider()
 st.caption("Local prototype, not a secured public upload service. Never publish source documents, cache, private dataset archives or API keys to GitHub.")

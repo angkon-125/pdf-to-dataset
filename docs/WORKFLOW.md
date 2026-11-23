@@ -1,4 +1,4 @@
-# Angkon Dataset Factory v0.2: architecture and guarantees
+# Angkon Dataset Factory v0.3: PDF ingestion foundation and guarantees
 
 ## Workflow
 
@@ -73,3 +73,8 @@ ZIP: draft Q&A, reviewer CSV, approved SFT, source-grouped splits, coverage,
 - Use `--resume-dir runs/cache` to reuse successful model calls. This folder stores model outputs in plaintext and is excluded from Git.
 - Enable `--tables` and `--ocr` only when needed, as these have extra CPU cost.
 - A document source with no reliable text should be visually reviewed, not automatically deemed complete.
+
+
+## Professional gold release
+
+The v0.3 release adds `expert_review.py`, `data_science.py`, `curation.py`, and `train_validate.py`. This foundation document mainly covers extraction and draft QA generation. See [ANNOTATOR_SCIENTIST.md](ANNOTATOR_SCIENTIST.md) for the new strict two-reviewer rubric, conflict handling, source-level splits, gold SFT/DPO JSONL, data-science diagnostics and pretraining validation.

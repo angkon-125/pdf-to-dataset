@@ -1,4 +1,4 @@
-# Run only in a CLONED repository after copying in the v0.2 project files.
+# Run only in a CLONED repository after copying in the v0.3 project files.
 # This script never force-pushes and ignores secrets and job outputs via .gitignore.
 param(
   [string]$RepositoryUrl = 'https://github.com/angkon-125/pdf-to-dataset.git',
@@ -19,7 +19,7 @@ if ($remote.Trim() -ne $RepositoryUrl) {
 if ($LASTEXITCODE -ne 0) { throw 'git add failed.' }
 $changes = (& git diff --cached --name-only)
 if (-not $changes) { Write-Host 'Nothing new to commit.'; exit 0 }
-& git commit -m 'Upgrade Angkon PDF-to-Dataset to v0.2'
+& git commit -m 'Upgrade Angkon PDF-to-Dataset to v0.3'
 if ($LASTEXITCODE -ne 0) { throw 'git commit failed. Check git user.name and user.email.' }
 & git branch -M $Branch
 & git push -u origin $Branch

@@ -15,4 +15,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 Write-Host ''
 Write-Host 'To start the Angkon UI:'
 Write-Host '  .\.venv\Scripts\python.exe -m streamlit run app.py'
+Write-Host '  .\.venv\Scripts\python.exe -m streamlit run curator_app.py'
 Write-Host 'Optional OCR requires a separate Tesseract installation.'

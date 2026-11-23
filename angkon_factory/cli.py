@@ -12,6 +12,8 @@ from .exports import build_batch_zip
 from .generation import LLMClient
 from .pipeline import PipelineOptions, run_batch
 from .review import review_existing_zip
+from .curation import curate_archive, profile_archive
+from .train_validate import audit_gold_release
 
 
 def _print_summary(output: Path, manifest: dict) -> None:
@@ -26,7 +28,68 @@ def _print_summary(output: Path, manifest: dict) -> None:
     }, indent=2, ensure_ascii=False))
 
 
+def _curation_commands() -> bool:
+    """Return True when a standalone curation subcommand was handled."""
+    if len(sys.argv) < 2 or sys.argv[1] not in ("inspect", "curate", "validate"):
+        return False
+    task = sys.argv[1]
+    if task == "validate":
+        parser = argparse.ArgumentParser(description="Lint a curated gold dataset before loading it into a trainer.")
+        parser.add_argument("validate")
+        parser.add_argument("gold_release", type=Path)
+        args = parser.parse_args()
+        report = audit_gold_release(args.gold_release.read_bytes())
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        if not report["ready_for_format_loading"]:
+            sys.exit(2)
+        return True
+    if task == "inspect":
+        parser = argparse.ArgumentParser(description="Create professional reviewer and preference templates from a v0.2+ dataset ZIP.")
+        parser.add_argument("inspect")
+        parser.add_argument("archive", type=Path)
+        parser.add_argument("--output-dir", "-o", type=Path, default=Path("review_workbench"))
+        args = parser.parse_args()
+        result = profile_archive(args.archive.read_bytes())
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        (args.output_dir / "rubric_template.csv").write_bytes(result["rubric_template"])
+        (args.output_dir / "preference_template.csv").write_bytes(result["preference_template"])
+        (args.output_dir / "preflight_quality.json").write_text(json.dumps(result["quality"], ensure_ascii=False, indent=2), encoding="utf-8")
+        import csv
+        with (args.output_dir / "review_priority.csv").open("w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=["annotation_id", "source_file", "source_page", "review_status", "risk_priority", "risk_reasons", "question"])
+            writer.writeheader()
+            writer.writerows(result["risk_queue"])
+        print(f"Created reviewer templates and quality reports in {args.output_dir.resolve()}")
+        return True
+    parser = argparse.ArgumentParser(description="Release strict human-reviewed SFT and genuine DPO data from an Angkon dataset archive.")
+    parser.add_argument("curate")
+    parser.add_argument("archive", type=Path)
+    parser.add_argument("--reviewer-csv", action="append", type=Path, required=True, help="Repeat for each independently completed reviewer CSV")
+    parser.add_argument("--edited-csv", type=Path, help="Optional corrected annotations_review.csv; complete edits before making rubric reviews")
+    parser.add_argument("--preferences-csv", type=Path, help="Optional genuine human-scored preference candidates")
+    parser.add_argument("--min-reviewers", type=int, choices=range(2, 6), default=2)
+    parser.add_argument("--rights-confirmed", action="store_true")
+    parser.add_argument("--attest-human-reviewed", action="store_true")
+    parser.add_argument("--output", "-o", type=Path, default=Path("angkon_gold_release.zip"))
+    args = parser.parse_args()
+    blob, manifest = curate_archive(
+        args.archive.read_bytes(), reviewer_csvs=[x.read_bytes() for x in args.reviewer_csv],
+        edited_annotations_csv=args.edited_csv.read_bytes() if args.edited_csv else None,
+        preferences_csv=args.preferences_csv.read_bytes() if args.preferences_csv else None,
+        rights_attested=args.rights_confirmed, human_review_attested=args.attest_human_reviewed,
+        min_reviewers=args.min_reviewers,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_bytes(blob)
+    print(json.dumps({"archive": str(args.output.resolve()), "gold_sft_records": manifest["gold_sft_records"],
+                      "verified_preference_pairs": manifest["human_approved_preference_pairs"],
+                      "split_counts": manifest["gold_split_counts"]}, indent=2))
+    return True
+
+
 def main() -> None:
+    if _curation_commands():
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "review":
         p = argparse.ArgumentParser(description="Import a human-reviewed CSV into an existing v0.2 dataset archive.")
         p.add_argument("review")

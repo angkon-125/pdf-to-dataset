@@ -219,7 +219,7 @@ def build_batch_zip(
     pages_with_text = sum(bool(p["text"].strip()) for d in documents for p in d["pages"])
     num_tables = sum(len(d.get("tables", [])) for d in documents)
     manifest: dict[str, Any] = {
-        "project": "Angkon Dataset Factory", "version": "0.2.0",
+        "project": "Angkon Dataset Factory", "version": "0.3.0",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "source_documents": len(documents),
         "sources": [
@@ -291,7 +291,7 @@ def build_batch_zip(
         "document_types": dict(Counter(d["document_type_heuristic"] for d in documents)),
         "detected_languages": dict(Counter(d["language_heuristic"] for d in documents)),
     }
-    readme = """ANGKON DATASET FACTORY v0.2 - OUTPUT GUIDE
+    readme = """ANGKON DATASET FACTORY v0.3 - DRAFT OUTPUT GUIDE
 
 rag_chunks.jsonl: all extracted, page-linked chunks (including non-generated chunks).
 source_pages.jsonl: extracted page text and extraction warnings/metadata.

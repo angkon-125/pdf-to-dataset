@@ -15,6 +15,6 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Compile source
-        run: python -m compileall -q angkon_factory app.py
+        run: python -m compileall -q angkon_factory app.py curator_app.py
       - name: Run unit tests
         run: python -m pytest -q
